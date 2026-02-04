@@ -620,7 +620,7 @@ def display_time_analysis(crashes: pd.DataFrame):
 
         day_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         daily = crashes_copy.groupby("DayName").size().reindex(day_order).reset_index(name="Crashes")
-        daily.columns = ["Day", "Crashes"]
+        daily = daily.rename(columns={"DayName": "Day"})
 
         fig = px.bar(daily, x="Day", y="Crashes",
                      color="Crashes",
@@ -636,7 +636,8 @@ def display_time_analysis(crashes: pd.DataFrame):
     st.subheader("Crash Heat Map (Hour x Day)")
 
     heatmap_data = crashes_copy.groupby(["DayOfWeek", "Hour"]).size().unstack(fill_value=0)
-    heatmap_data.index = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    day_labels = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
+    heatmap_data.index = heatmap_data.index.map(day_labels)
 
     fig = px.imshow(
         heatmap_data,
