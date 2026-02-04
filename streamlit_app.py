@@ -237,6 +237,8 @@ def display_overview(crashes: pd.DataFrame, prev_crashes: pd.DataFrame, roadwork
 
     # Calculate average clearance time
     avg_clearance = calculate_avg_clearance_time(crashes)
+    avg_clearance_mins = calculate_avg_clearance_minutes(crashes)
+    prev_clearance_mins = calculate_avg_clearance_minutes(prev_crashes)
 
     # Calculate percentage changes
     def pct_change(current, previous, label):
@@ -265,7 +267,12 @@ def display_overview(crashes: pd.DataFrame, prev_crashes: pd.DataFrame, roadwork
         pct_in_workzone = f"{100*construction_crashes/total_crashes:.1f}% of total" if total_crashes else "0%"
         st.metric("In/Near Work Zones", f"{construction_crashes:,}", delta=pct_in_workzone, delta_color="off")
     with col5:
-        st.metric("Avg Clearance", avg_clearance)
+        clearance_delta = None
+        if avg_clearance_mins and prev_clearance_mins and period_label:
+            diff = avg_clearance_mins - prev_clearance_mins
+            if abs(diff) >= 1:
+                clearance_delta = f"{diff:+.0f} min from {period_label}"
+        st.metric("Avg Clearance", avg_clearance, delta=clearance_delta, delta_color="inverse")
 
     st.divider()
 
@@ -393,11 +400,13 @@ def calculate_construction_zone_crashes(crashes: pd.DataFrame, roadwork: pd.Data
     return construction_crashes
 
 
-def calculate_avg_clearance_time(crashes: pd.DataFrame) -> str:
-    """Calculate average time to clear crashes."""
+def calculate_avg_clearance_minutes(crashes: pd.DataFrame) -> float | None:
+    """Calculate average clearance time in minutes. Returns None if not calculable."""
+    if crashes is None or crashes.empty:
+        return None
     crashes_with_times = crashes.dropna(subset=["Start Time", "End Time"])
     if crashes_with_times.empty:
-        return "N/A"
+        return None
 
     try:
         start_times = pd.to_datetime(crashes_with_times["Start Time"])
@@ -407,15 +416,22 @@ def calculate_avg_clearance_time(crashes: pd.DataFrame) -> str:
         # Filter out unreasonable values (< 1 min or > 24 hours)
         valid_durations = durations[(durations > 1) & (durations < 1440)]
         if valid_durations.empty:
-            return "N/A"
+            return None
 
-        avg_minutes = valid_durations.mean()
-        if avg_minutes < 60:
-            return f"{avg_minutes:.0f} min"
-        else:
-            return f"{avg_minutes/60:.1f} hrs"
+        return valid_durations.mean()
     except Exception:
+        return None
+
+
+def calculate_avg_clearance_time(crashes: pd.DataFrame) -> str:
+    """Calculate average time to clear crashes as formatted string."""
+    avg_minutes = calculate_avg_clearance_minutes(crashes)
+    if avg_minutes is None:
         return "N/A"
+    if avg_minutes < 60:
+        return f"{avg_minutes:.0f} min"
+    else:
+        return f"{avg_minutes/60:.1f} hrs"
 
 
 def calculate_danger_score(severity_series: pd.Series) -> int:
