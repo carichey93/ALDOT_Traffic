@@ -832,10 +832,7 @@ def display_about():
 
     st.subheader("Data Source")
     st.markdown("""
-    - **Source:** [ALDOT AlgoTraffic API](https://algotraffic.com)
-    - **Update Frequency:** Data is fetched automatically every 30 minutes when the dashboard is accessed
-    - **Event Types Tracked:** Crashes, Roadwork, Incidents, Road Conditions
-    - **Coverage:** All Alabama state and interstate highways monitored by ALDOT
+    Data is pulled from the [ALDOT AlgoTraffic website](https://algotraffic.com/map).
     """)
 
     st.divider()
