@@ -59,7 +59,7 @@ def main():
     # Display logo and title
     col_logo, col_title = st.columns([1, 4])
     with col_logo:
-        st.image("website_logo.jpg", width=100)
+        st.image("website_logo.png", width=100)
     with col_title:
         st.title("Rammer Slammer Traffic Jammer")
 
