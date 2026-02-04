@@ -102,6 +102,18 @@ def main():
         else:
             st.caption("Last updated: Never")
 
+        st.divider()
+        st.markdown(
+            """
+            <a href="https://www.buymeacoffee.com/mzyejstdb" target="_blank">
+                <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png"
+                     alt="Buy Me A Coffee"
+                     style="height: 40px; width: 145px;">
+            </a>
+            """,
+            unsafe_allow_html=True
+        )
+
     # Load crash data for current period
     crashes = query_events(
         start_date=start_date,
