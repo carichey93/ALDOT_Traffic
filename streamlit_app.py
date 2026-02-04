@@ -23,6 +23,7 @@ from database import (
     init_db,
     query_events,
 )
+from update_events import update_events
 
 GEOJSON_FILE = Path(__file__).parent / "Alabama_Counties.geojson"
 
@@ -65,6 +66,7 @@ def main():
     # Sidebar
     with st.sidebar:
         st.header("Dashboard Controls")
+        check_and_update_db()
 
         # Date range selection
         date_range = st.selectbox(
@@ -179,6 +181,15 @@ def get_previous_period(start_date, end_date, selection: str) -> tuple:
         prev_start = prev_end - datetime.timedelta(days=days_in_period - 1)
 
     return prev_start, prev_end
+
+
+def check_and_update_db():
+    """Update database if stale."""
+    last_update = get_last_update_time()
+    if last_update is None or (datetime.datetime.now() - last_update).total_seconds() > 1800:
+        with st.spinner("Fetching latest data..."):
+            update_events()
+        st.cache_data.clear()
 
 
 @st.cache_data(ttl=300)
