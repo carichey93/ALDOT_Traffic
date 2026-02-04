@@ -94,7 +94,13 @@ def main():
         )
 
         st.divider()
-        st.caption(f"Last updated: {get_last_update_time().strftime('%Y-%m-%d %H:%M') if get_last_update_time() else 'Never'}")
+        last_update = get_last_update_time()
+        if last_update:
+            # Convert from UTC to local time
+            local_time = last_update.replace(tzinfo=datetime.timezone.utc).astimezone()
+            st.caption(f"Last updated: {local_time.strftime('%Y-%m-%d %H:%M')}")
+        else:
+            st.caption("Last updated: Never")
 
     # Load crash data for current period
     crashes = query_events(
@@ -186,7 +192,7 @@ def get_previous_period(start_date, end_date, selection: str) -> tuple:
 def check_and_update_db():
     """Update database if stale."""
     last_update = get_last_update_time()
-    if last_update is None or (datetime.datetime.now() - last_update).total_seconds() > 1800:
+    if last_update is None or (datetime.datetime.utcnow() - last_update).total_seconds() > 1800:
         with st.spinner("Fetching latest data..."):
             update_events()
         st.cache_data.clear()
