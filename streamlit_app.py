@@ -485,15 +485,12 @@ def display_danger_rankings(crashes: pd.DataFrame):
     with col1:
         st.subheader("Most Dangerous Roads")
 
-        road_stats = crashes.groupby("Road").agg({
-            "Event ID": "count",
-            "Severity": [
-                lambda x: (x == "Major").sum(),
-                lambda x: (x == "Moderate").sum(),
-                lambda x: (x == "Minor").sum()
-            ]
-        })
-        road_stats.columns = ["Total", "Major", "Moderate", "Minor"]
+        road_stats = crashes.groupby("Road").agg(
+            Total=("Event ID", "count"),
+            Major=("Severity", lambda x: (x == "Major").sum()),
+            Moderate=("Severity", lambda x: (x == "Moderate").sum()),
+            Minor=("Severity", lambda x: (x == "Minor").sum())
+        )
         road_stats["Score"] = (road_stats["Major"] * 3) + (road_stats["Moderate"] * 2) + (road_stats["Minor"] * 1)
         road_stats = road_stats.sort_values("Score", ascending=False).head(15)
 
@@ -523,15 +520,12 @@ def display_danger_rankings(crashes: pd.DataFrame):
     with col2:
         st.subheader("Most Dangerous Counties")
 
-        county_stats = crashes.groupby("County").agg({
-            "Event ID": "count",
-            "Severity": [
-                lambda x: (x == "Major").sum(),
-                lambda x: (x == "Moderate").sum(),
-                lambda x: (x == "Minor").sum()
-            ]
-        })
-        county_stats.columns = ["Total", "Major", "Moderate", "Minor"]
+        county_stats = crashes.groupby("County").agg(
+            Total=("Event ID", "count"),
+            Major=("Severity", lambda x: (x == "Major").sum()),
+            Moderate=("Severity", lambda x: (x == "Moderate").sum()),
+            Minor=("Severity", lambda x: (x == "Minor").sum())
+        )
         county_stats["Score"] = (county_stats["Major"] * 3) + (county_stats["Moderate"] * 2) + (county_stats["Minor"] * 1)
         county_stats = county_stats.sort_values("Score", ascending=False).head(15)
 
