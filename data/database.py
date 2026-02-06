@@ -6,12 +6,11 @@ Uses SQLite for efficient storage and querying of traffic event data.
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
-from pathlib import Path
 from typing import Optional
 
 import pandas as pd
 
-DB_FILE = Path(__file__).parent / "traffic_events.db"
+from app.config import DB_FILE
 
 
 @contextmanager
@@ -28,12 +27,10 @@ def get_connection():
 def init_db():
     """Initialize the database schema and indexes."""
     with get_connection() as conn:
-        # Check if we need to migrate (add new columns)
         cursor = conn.execute("PRAGMA table_info(traffic_events)")
         existing_columns = {row[1] for row in cursor.fetchall()}
 
         if not existing_columns:
-            # Create new table with all columns
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS traffic_events (
                     event_id INTEGER PRIMARY KEY,
@@ -65,7 +62,6 @@ def init_db():
                 )
             """)
         else:
-            # Add new columns if they don't exist
             new_columns = [
                 ("full_location", "TEXT"),
                 ("road_display", "TEXT"),
@@ -77,31 +73,46 @@ def init_db():
             ]
             for col_name, col_type in new_columns:
                 if col_name not in existing_columns:
-                    conn.execute(f"ALTER TABLE traffic_events ADD COLUMN {col_name} {col_type}")
+                    conn.execute(
+                        f"ALTER TABLE traffic_events ADD COLUMN {col_name} {col_type}"
+                    )
 
-        # Create indexes for common query patterns
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_start_time ON traffic_events(start_time)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_county ON traffic_events(county)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_category ON traffic_events(category)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_severity ON traffic_events(severity)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_county_category ON traffic_events(county, category)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_coords ON traffic_events(start_latitude, start_longitude)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_active ON traffic_events(active)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_road ON traffic_events(road)")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_start_time ON traffic_events(start_time)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_county ON traffic_events(county)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_category ON traffic_events(category)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_severity ON traffic_events(severity)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_county_category ON traffic_events(county, category)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_coords ON traffic_events(start_latitude, start_longitude)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_active ON traffic_events(active)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_road ON traffic_events(road)"
+        )
 
         conn.commit()
 
 
 def upsert_events(events: list[dict]):
-    """
-    Insert or update multiple events in the database.
-    Uses INSERT OR REPLACE for efficient upserts.
-    """
+    """Insert or update multiple events in the database."""
     if not events:
         return 0
 
     with get_connection() as conn:
-        cursor = conn.executemany("""
+        cursor = conn.executemany(
+            """
             INSERT OR REPLACE INTO traffic_events (
                 event_id, category, title, location, full_location, description, region,
                 severity, county, city, road, road_display, road_type, cross_street,
@@ -113,23 +124,22 @@ def upsert_events(events: list[dict]):
                 :direction, :mile_marker, :start_time, :end_time, :last_updated, :active,
                 :start_latitude, :start_longitude, :end_latitude, :end_longitude, :lane_closures
             )
-        """, events)
+        """,
+            events,
+        )
         conn.commit()
         return cursor.rowcount
 
 
 def query_events(
-    start_date: Optional[datetime] = None,
-    end_date: Optional[datetime] = None,
+    start_date=None,
+    end_date=None,
     counties: Optional[list[str]] = None,
     categories: Optional[list[str]] = None,
     severities: Optional[list[str]] = None,
     active_only: bool = False,
 ) -> pd.DataFrame:
-    """
-    Query events with optional filters.
-    Returns a pandas DataFrame for compatibility with existing visualization code.
-    """
+    """Query events with optional filters. Returns a pandas DataFrame."""
     conditions = ["start_latitude IS NOT NULL", "start_longitude IS NOT NULL"]
     params = []
 
@@ -194,7 +204,9 @@ def query_events(
     """
 
     with get_connection() as conn:
-        df = pd.read_sql_query(query, conn, params=params, parse_dates=["Start Time", "End Time", "Last Updated"])
+        df = pd.read_sql_query(
+            query, conn, params=params, parse_dates=["Start Time", "End Time", "Last Updated"]
+        )
 
     return df
 
@@ -212,21 +224,23 @@ def get_unique_values(column: str) -> list:
     db_column = column_map.get(column, column.lower())
 
     with get_connection() as conn:
-        cursor = conn.execute(f"""
+        cursor = conn.execute(
+            f"""
             SELECT DISTINCT {db_column}
             FROM traffic_events
             WHERE {db_column} IS NOT NULL AND {db_column} != ''
             ORDER BY {db_column}
-        """)
+        """
+        )
         return [row[0] for row in cursor.fetchall()]
 
 
 def get_date_range() -> tuple[datetime, datetime]:
     """Get the min and max start_time in the database."""
     with get_connection() as conn:
-        cursor = conn.execute("""
-            SELECT MIN(start_time), MAX(start_time) FROM traffic_events
-        """)
+        cursor = conn.execute(
+            "SELECT MIN(start_time), MAX(start_time) FROM traffic_events"
+        )
         row = cursor.fetchone()
         min_date = datetime.fromisoformat(row[0]) if row[0] else datetime.now()
         max_date = datetime.fromisoformat(row[1]) if row[1] else datetime.now()
@@ -243,9 +257,7 @@ def get_event_count() -> int:
 def get_last_update_time() -> Optional[datetime]:
     """Get the most recent created_at timestamp."""
     with get_connection() as conn:
-        cursor = conn.execute("""
-            SELECT MAX(created_at) FROM traffic_events
-        """)
+        cursor = conn.execute("SELECT MAX(created_at) FROM traffic_events")
         row = cursor.fetchone()
         if row[0]:
             return datetime.fromisoformat(row[0])
@@ -256,59 +268,61 @@ def migrate_from_csv(csv_path: str, batch_size: int = 5000) -> int:
     """
     Migrate data from CSV file to database.
     Processes in batches to handle large files efficiently.
-    Returns the number of records migrated.
     """
     init_db()
 
     df = pd.read_csv(csv_path)
     df["Start Time"] = pd.to_datetime(df["Start Time"])
     df["End Time"] = pd.to_datetime(df["End Time"])
-
-    # Drop rows without coordinates
     df = df.dropna(subset=["Start Latitude", "Start Longitude"])
 
     total_inserted = 0
 
     for i in range(0, len(df), batch_size):
-        batch = df.iloc[i:i + batch_size]
+        batch = df.iloc[i : i + batch_size]
         events = []
 
         for _, row in batch.iterrows():
-            events.append({
-                "event_id": int(row["Event ID"]),
-                "category": row.get("Category"),
-                "title": row.get("Title"),
-                "location": row.get("Location"),
-                "full_location": None,  # Not in old CSV
-                "description": row.get("Description"),
-                "region": row.get("Region"),
-                "severity": row.get("Severity"),
-                "county": row.get("County"),
-                "city": row.get("City"),
-                "road": row.get("Road"),
-                "road_display": None,  # Not in old CSV
-                "road_type": row.get("Road Type"),
-                "cross_street": None,  # Not in old CSV
-                "direction": None,  # Not in old CSV
-                "mile_marker": None,  # Not in old CSV
-                "start_time": row["Start Time"].isoformat() if pd.notna(row["Start Time"]) else None,
-                "end_time": row["End Time"].isoformat() if pd.notna(row.get("End Time")) else None,
-                "last_updated": None,  # Not in old CSV
-                "active": None,  # Not in old CSV
-                "start_latitude": row["Start Latitude"],
-                "start_longitude": row["Start Longitude"],
-                "end_latitude": row.get("End Latitude") if pd.notna(row.get("End Latitude")) else None,
-                "end_longitude": row.get("End Longitude") if pd.notna(row.get("End Longitude")) else None,
-                "lane_closures": row.get("Lane Closures"),
-            })
+            events.append(
+                {
+                    "event_id": int(row["Event ID"]),
+                    "category": row.get("Category"),
+                    "title": row.get("Title"),
+                    "location": row.get("Location"),
+                    "full_location": None,
+                    "description": row.get("Description"),
+                    "region": row.get("Region"),
+                    "severity": row.get("Severity"),
+                    "county": row.get("County"),
+                    "city": row.get("City"),
+                    "road": row.get("Road"),
+                    "road_display": None,
+                    "road_type": row.get("Road Type"),
+                    "cross_street": None,
+                    "direction": None,
+                    "mile_marker": None,
+                    "start_time": row["Start Time"].isoformat()
+                    if pd.notna(row["Start Time"])
+                    else None,
+                    "end_time": row["End Time"].isoformat()
+                    if pd.notna(row.get("End Time"))
+                    else None,
+                    "last_updated": None,
+                    "active": None,
+                    "start_latitude": row["Start Latitude"],
+                    "start_longitude": row["Start Longitude"],
+                    "end_latitude": row.get("End Latitude")
+                    if pd.notna(row.get("End Latitude"))
+                    else None,
+                    "end_longitude": row.get("End Longitude")
+                    if pd.notna(row.get("End Longitude"))
+                    else None,
+                    "lane_closures": row.get("Lane Closures"),
+                }
+            )
 
         upsert_events(events)
         total_inserted += len(events)
         print(f"Migrated {total_inserted:,} records...")
 
     return total_inserted
-
-
-if __name__ == "__main__":
-    init_db()
-    print(f"Database initialized at {DB_FILE}")

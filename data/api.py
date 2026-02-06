@@ -7,22 +7,25 @@ from typing import Optional
 
 import requests
 
-from database import init_db, upsert_events
-
-API_BASE = "https://api.algotraffic.com/v3.0/TrafficEvents"
-EVENT_TYPES = ["Roadwork", "Crash", "Incident", "RoadCondition"]
+from app.config import API_BASE, EVENT_TYPES
+from data.database import init_db, upsert_events
 
 
 def process_lane_info(lane_info: list) -> str:
     """
-    Processes lane information from the API response.
+    Process lane information from the API response.
     Returns a comma-separated string of closed lanes.
     """
     if not lane_info:
         return ""
 
     closed_lanes = []
-    through_lane_names = {0: "Through Lane", 1: "Inside Lane", 2: "Center Lane", 3: "Outside Lane"}
+    through_lane_names = {
+        0: "Through Lane",
+        1: "Inside Lane",
+        2: "Center Lane",
+        3: "Outside Lane",
+    }
 
     for direction_info in lane_info:
         direction = direction_info.get("direction", "")
@@ -50,7 +53,6 @@ def parse_datetime(dt_string: Optional[str]) -> Optional[str]:
     if not dt_string:
         return None
     try:
-        # Handle various ISO formats
         dt_string = dt_string.replace("Z", "+00:00")
         dt = datetime.fromisoformat(dt_string)
         return dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -59,10 +61,7 @@ def parse_datetime(dt_string: Optional[str]) -> Optional[str]:
 
 
 def get_api_response(session: requests.Session, url: str) -> list[dict]:
-    """
-    Fetches data from the API and processes the response.
-    Returns a list of event dictionaries ready for database insertion.
-    """
+    """Fetch data from the API and return event dicts ready for database insertion."""
     try:
         response = session.get(url, timeout=30)
         response.raise_for_status()
@@ -73,43 +72,45 @@ def get_api_response(session: requests.Session, url: str) -> list[dict]:
             start_loc = event.get("startLocation") or {}
             end_loc = event.get("endLocation") or {}
 
-            # Skip events without coordinates
             lat = start_loc.get("latitude")
             lon = start_loc.get("longitude")
             if not lat or not lon:
                 continue
 
-            # Clean severity (remove "Delay" suffix)
             severity = event.get("severity") or ""
             severity = severity.replace("Delay", "").strip()
 
-            events.append({
-                "event_id": event.get("id"),
-                "category": event.get("type"),
-                "title": event.get("title"),
-                "location": event.get("shortSubTitle"),
-                "full_location": event.get("subTitle"),
-                "description": event.get("description"),
-                "region": event.get("responsibleRegion"),
-                "severity": severity,
-                "county": start_loc.get("county"),
-                "city": start_loc.get("city"),
-                "road": start_loc.get("routeDesignator"),
-                "road_display": start_loc.get("displayRouteDesignator"),
-                "road_type": start_loc.get("routeDesignatorType"),
-                "cross_street": start_loc.get("displayCrossStreet"),
-                "direction": start_loc.get("direction"),
-                "mile_marker": start_loc.get("linearReference"),
-                "start_time": parse_datetime(event.get("start")),
-                "end_time": parse_datetime(event.get("end")),
-                "last_updated": parse_datetime(event.get("lastUpdatedAt")),
-                "active": 1 if event.get("active") else 0,
-                "start_latitude": lat,
-                "start_longitude": lon,
-                "end_latitude": end_loc.get("latitude"),
-                "end_longitude": end_loc.get("longitude"),
-                "lane_closures": process_lane_info(event.get("laneDirections", [])),
-            })
+            events.append(
+                {
+                    "event_id": event.get("id"),
+                    "category": event.get("type"),
+                    "title": event.get("title"),
+                    "location": event.get("shortSubTitle"),
+                    "full_location": event.get("subTitle"),
+                    "description": event.get("description"),
+                    "region": event.get("responsibleRegion"),
+                    "severity": severity,
+                    "county": start_loc.get("county"),
+                    "city": start_loc.get("city"),
+                    "road": start_loc.get("routeDesignator"),
+                    "road_display": start_loc.get("displayRouteDesignator"),
+                    "road_type": start_loc.get("routeDesignatorType"),
+                    "cross_street": start_loc.get("displayCrossStreet"),
+                    "direction": start_loc.get("direction"),
+                    "mile_marker": start_loc.get("linearReference"),
+                    "start_time": parse_datetime(event.get("start")),
+                    "end_time": parse_datetime(event.get("end")),
+                    "last_updated": parse_datetime(event.get("lastUpdatedAt")),
+                    "active": 1 if event.get("active") else 0,
+                    "start_latitude": lat,
+                    "start_longitude": lon,
+                    "end_latitude": end_loc.get("latitude"),
+                    "end_longitude": end_loc.get("longitude"),
+                    "lane_closures": process_lane_info(
+                        event.get("laneDirections", [])
+                    ),
+                }
+            )
 
         return events
 
@@ -123,7 +124,7 @@ def get_api_response(session: requests.Session, url: str) -> list[dict]:
 
 def update_events() -> int:
     """
-    Fetches traffic event data from all API endpoints and updates the database.
+    Fetch traffic event data from all API endpoints and update the database.
     Returns the number of events processed.
     """
     init_db()
@@ -131,10 +132,12 @@ def update_events() -> int:
     all_events = []
 
     with requests.Session() as session:
-        session.headers.update({
-            "User-Agent": "ALDOT-Traffic-Dashboard/1.0",
-            "Accept": "application/json",
-        })
+        session.headers.update(
+            {
+                "User-Agent": "ALDOT-Traffic-Dashboard/1.0",
+                "Accept": "application/json",
+            }
+        )
 
         for event_type in EVENT_TYPES:
             url = f"{API_BASE}?type={event_type}"
@@ -147,14 +150,3 @@ def update_events() -> int:
         print(f"Total: {len(all_events)} events updated in database")
 
     return len(all_events)
-
-
-# Backward compatibility alias
-def update_csv():
-    """Legacy function name for backward compatibility."""
-    return update_events()
-
-
-if __name__ == "__main__":
-    count = update_events()
-    print(f"Done. Updated {count} events.")

@@ -2,16 +2,20 @@
 One-time migration script to load existing CSV data into the SQLite database.
 
 Usage:
-    python migrate_data.py
+    python -m data.migrate
 """
 
 import os
 import sys
 from pathlib import Path
 
-from database import DB_FILE, get_event_count, init_db, migrate_from_csv
+# Allow running as a standalone script or as a module
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-CSV_FILE = Path(__file__).parent / "traffic_events.csv"
+from app.config import DB_FILE
+from data.database import get_event_count, init_db, migrate_from_csv
+
+CSV_FILE = Path(__file__).parent.parent / "traffic_events.csv"
 
 
 def main():
@@ -19,7 +23,6 @@ def main():
     print("ALDOT Traffic Events - CSV to SQLite Migration")
     print("=" * 60)
 
-    # Check if CSV exists
     if not CSV_FILE.exists():
         print(f"ERROR: CSV file not found: {CSV_FILE}")
         sys.exit(1)
@@ -28,11 +31,12 @@ def main():
     print(f"Source CSV: {CSV_FILE}")
     print(f"CSV Size: {csv_size:.2f} MB")
 
-    # Check if database already exists
     if DB_FILE.exists():
         existing_count = get_event_count()
         print(f"Database already exists with {existing_count:,} records.")
-        response = input("Do you want to re-migrate? This will update existing records. (y/N): ")
+        response = input(
+            "Do you want to re-migrate? This will update existing records. (y/N): "
+        )
         if response.lower() != "y":
             print("Migration cancelled.")
             return

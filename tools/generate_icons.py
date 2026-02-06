@@ -1,15 +1,19 @@
 """
-Regenerate favicon and apple-touch-icon from website_logo.png
+Regenerate favicon and apple-touch-icon from website_logo.png.
 
-Run this script after updating website_logo.png:
-    python generate_icons.py
+Run this script from the project root:
+    python -m tools.generate_icons
 """
 
+import sys
 from pathlib import Path
+
+# Allow running as a standalone script or as a module
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from PIL import Image
 
-LOGO_FILE = Path(__file__).parent / "website_logo.png"
-STATIC_DIR = Path(__file__).parent / "static"
+from app.config import LOGO_FILE, STATIC_DIR
 
 
 def main():
@@ -17,15 +21,13 @@ def main():
         print(f"ERROR: Logo file not found: {LOGO_FILE}")
         return
 
-    # Open the logo
     img = Image.open(LOGO_FILE)
     print(f"Source: {LOGO_FILE} ({img.size[0]}x{img.size[1]})")
 
-    # Convert to RGBA if needed
     if img.mode != "RGBA":
         img = img.convert("RGBA")
 
-    # Create apple-touch-icon (180x180)
+    # Apple touch icon (180x180)
     apple_icon = img.copy()
     apple_icon.thumbnail((180, 180), Image.LANCZOS)
     apple_canvas = Image.new("RGBA", (180, 180), (255, 255, 255, 0))
@@ -35,7 +37,7 @@ def main():
     apple_canvas.save(STATIC_DIR / "apple-touch-icon.png", "PNG")
     print("Created static/apple-touch-icon.png (180x180)")
 
-    # Create favicon (32x32)
+    # Favicon (32x32)
     favicon = img.copy()
     favicon.thumbnail((32, 32), Image.LANCZOS)
     favicon_canvas = Image.new("RGBA", (32, 32), (255, 255, 255, 0))
